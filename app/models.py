@@ -23,7 +23,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     phone = Column(String(20), nullable=False)
     # Filled in on day 3 when Keycloak creates the login.
-    keycloak_id = Column(String(100), unique=True)
+    password_hash = Column(String(200), nullable=False)
 
     accounts = relationship("Account", back_populates="user")
     addresses = relationship("Address", back_populates="user")

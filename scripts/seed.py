@@ -8,9 +8,9 @@ import sys
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.auth import hash_password
 from app.database import Base, SessionLocal, engine
 from app.models import KYC, Account, Address, ServiceRequest, Transaction, User
 
@@ -100,7 +100,8 @@ def seed():
     total_txns = 0
 
     for i, (cust_id, name, email, phone, city, state, pincode) in enumerate(USERS, start=1):
-        user = User(customer_id=cust_id, name=name, email=email, phone=phone)
+        user = User(customer_id=cust_id, name=name, email=email, phone=phone,
+            password_hash=hash_password(cust_id))
         db.add(user)
         db.flush()  # get user.id before using it below
 
