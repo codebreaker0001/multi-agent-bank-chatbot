@@ -1,0 +1,19 @@
+# day 1
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+python-dotenv==1.0.1
+pytest==8.3.4
+
+# day 2
+fastapi==0.115.6
+uvicorn==0.34.0
+redis==5.2.1
+httpx==0.28.1
+
+# day 3
+python-jose[cryptography]==3.3.0
+bcrypt==4.0.1
+passlib==1.7.4
+
+# day 5
+groq==0.12.0

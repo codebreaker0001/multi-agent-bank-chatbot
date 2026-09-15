@@ -1,8 +1,6 @@
-"""Request and response schemas.
+"""Request and response schemas."""
 
-Pydantic validates these before the request reaches any business logic.
-A bad request is rejected immediately with a clear error — the LLM never sees it.
-"""
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +25,22 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     session_id: str
+
+
+class ServiceActionRequest(BaseModel):
+    """Called after the user confirms a service change in chat."""
+    action: Literal["update_address", "request_cheque_book", "update_kyc"]
+    # update_address fields
+    line1: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    # update_kyc field
+    document_type: Optional[str] = None
+
+
+class ServiceActionResponse(BaseModel):
+    message: str
 
 
 class ErrorResponse(BaseModel):
