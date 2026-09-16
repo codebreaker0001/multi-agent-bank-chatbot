@@ -39,7 +39,7 @@ Classify the user message into exactly one of these intents:
 Reply with only the intent word. Nothing else.
 If the message is unrelated to banking, reply: unknown"""
 
-
+a = "hello"
 def classify_intent(message: str) -> str:
     """Ask the LLM to classify the intent. Returns one of: account / transaction / service / unknown."""
     response = client.chat.completions.create(
@@ -48,8 +48,9 @@ def classify_intent(message: str) -> str:
             {"role": "system", "content": INTENT_PROMPT},
             {"role": "user", "content": message},
         ],
-        temperature=0,      # deterministic — we want consistent classification
-        max_tokens=10,      # intent is one word, no need for more
+        temperature=0,          # deterministic — we want consistent classification
+        max_tokens=200,         # gpt-oss spends tokens on internal reasoning before the answer
+        reasoning_effort="low", # keep that reasoning overhead minimal for a one-word answer
     )
     intent = response.choices[0].message.content.strip().lower()
     # Guard against unexpected responses
@@ -119,6 +120,7 @@ def run(message: str, history: list[dict], context: str = "") -> tuple[str, str]
         messages=messages,
         temperature=0.3,
         max_tokens=512,
+        reasoning_effort="low",
     )
 
     reply = response.choices[0].message.content.strip()
