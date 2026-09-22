@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
 
-from app.auth import create_token, hash_password
+from app.auth import create_access_token, hash_password
 from app.coordinator import UNKNOWN_REPLY, classify_intent, run
 from app.database import Base, get_db
 from app.main import app
@@ -144,7 +144,7 @@ def client():
 
 @pytest.fixture
 def auth_headers():
-    return {"Authorization": f"Bearer {create_token('CUST1001', 'Ananya Sharma')}"}
+    return {"Authorization": f"Bearer {create_access_token('CUST1001', 'Ananya Sharma')}"}
 
 
 @patch("app.coordinator.client")

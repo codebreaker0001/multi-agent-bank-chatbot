@@ -14,7 +14,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 # JWT
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 JWT_ALGO = "HS256"
-JWT_EXPIRY_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_MINUTES = 7 * 24 * 60  # 7 days
 
 # Rate limiting
 RATE_LIMIT = 20       # requests

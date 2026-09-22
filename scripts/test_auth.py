@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
 
-from app.auth import create_token, decode_token, hash_password, verify_password
+from app.auth import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
 from app.database import Base, get_db
 from app.main import app
 from app.models import User
@@ -50,7 +50,7 @@ def client():
 
 @pytest.fixture
 def token():
-    return create_token("CUST1001", "Ananya Sharma")
+    return create_access_token("CUST1001", "Ananya Sharma")
 
 
 # ── password ──────────────────────────────────────────────────────────────────
@@ -70,10 +70,18 @@ def test_wrong_password_fails():
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 
-def test_token_contains_customer_id_and_name():
-    payload = decode_token(create_token("CUST1001", "Ananya Sharma"))
+def test_access_token_contains_customer_id_and_name():
+    payload = decode_token(create_access_token("CUST1001", "Ananya Sharma"))
     assert payload["sub"] == "CUST1001"
     assert payload["name"] == "Ananya Sharma"
+    assert payload["type"] == "access"
+
+
+def test_refresh_token_cannot_be_used_as_access_token():
+    from jose import JWTError
+    refresh = create_refresh_token("CUST1001")
+    with pytest.raises(JWTError):
+        decode_token(refresh, expected_type="access")
 
 
 def test_tampered_token_is_rejected():
@@ -83,30 +91,55 @@ def test_tampered_token_is_rejected():
 
 
 # ── login endpoint ────────────────────────────────────────────────────────────
+# Login uses OAuth2PasswordRequestForm, so it's form-encoded ("data="), not JSON.
 
-def test_login_returns_token(client):
-    res = client.post("/login", json={"customer_id": "CUST1001", "password": "CUST1001"})
+def test_login_returns_access_and_refresh_tokens(client):
+    res = client.post("/login", data={"username": "CUST1001", "password": "CUST1001"})
     assert res.status_code == 200
     data = res.json()
     assert "access_token" in data
+    assert "refresh_token" in data
     assert data["token_type"] == "bearer"
     assert data["name"] == "Ananya Sharma"
 
 
 def test_wrong_password_returns_401(client):
-    res = client.post("/login", json={"customer_id": "CUST1001", "password": "wrongpass"})
+    res = client.post("/login", data={"username": "CUST1001", "password": "wrongpass"})
     assert res.status_code == 401
 
 
 def test_unknown_user_returns_401(client):
-    res = client.post("/login", json={"customer_id": "CUST9999", "password": "anything"})
+    res = client.post("/login", data={"username": "CUST9999", "password": "anything"})
+    assert res.status_code == 401
+
+
+# ── refresh endpoint ──────────────────────────────────────────────────────────
+
+def test_refresh_issues_new_access_token(client):
+    refresh_token = create_refresh_token("CUST1001")
+    res = client.post("/refresh", json={"refresh_token": refresh_token})
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert decode_token(data["access_token"])["sub"] == "CUST1001"
+
+
+def test_refresh_rejects_access_token(client, token):
+    # An access token isn't a valid refresh token, even though both are JWTs.
+    res = client.post("/refresh", json={"refresh_token": token})
+    assert res.status_code == 401
+
+
+def test_refresh_rejects_unknown_user(client):
+    refresh_token = create_refresh_token("CUST9999")
+    res = client.post("/refresh", json={"refresh_token": refresh_token})
     assert res.status_code == 401
 
 
 # ── protected /chat ───────────────────────────────────────────────────────────
 
 def test_chat_requires_token(client):
-    # HTTPBearer returns 403 when the Authorization header is missing entirely
+    # OAuth2PasswordBearer returns 401 when the Authorization header is missing entirely
     res = client.post("/chat", json={"message": "hello", "session_id": "s1"})
     assert res.status_code == 401
 

@@ -2,10 +2,10 @@
  * App.js — top-level state: are we logged in or not?
  *
  * auth state:
- *   null                → show Login screen
- *   { token, name }     → show ChatWindow
+ *   null                                  → show Login screen
+ *   { token, refreshToken, name }         → show ChatWindow
  *
- * The JWT is kept in React state (memory), not localStorage.
+ * Both JWTs are kept in React state (memory), not localStorage.
  * Why? localStorage is accessible to any JS on the page (XSS risk).
  * In-memory means the token is gone when the tab closes, which is fine
  * for a banking session.
@@ -19,12 +19,16 @@ export default function App() {
   const [auth, setAuth] = useState(null);
 
   function handleLogin(data) {
-    // data = { access_token, customer_id, name }
-    setAuth({ token: data.access_token, name: data.name });
+    // data = { access_token, refresh_token, customer_id, name }
+    setAuth({ token: data.access_token, refreshToken: data.refresh_token, name: data.name });
   }
 
   function handleLogout() {
     setAuth(null);
+  }
+
+  function handleTokenRefresh(accessToken) {
+    setAuth((prev) => ({ ...prev, token: accessToken }));
   }
 
   if (!auth) {
@@ -34,8 +38,10 @@ export default function App() {
   return (
     <ChatWindow
       token={auth.token}
+      refreshToken={auth.refreshToken}
       userName={auth.name}
       onLogout={handleLogout}
+      onTokenRefresh={handleTokenRefresh}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { sendMessage } from "../api";
+import { refreshAccessToken, sendMessage } from "../api";
 import MessageBubble from "./MessageBubble";
 
 // Session ID is fixed per browser tab. In a real app you'd generate one
@@ -8,7 +8,7 @@ const SESSION_ID = `sess-${Math.random().toString(36).slice(2, 9)}`;
 
 const WELCOME = "Hello! I'm your DemoBank assistant. I can help you with:\n• Account balance and details\n• Transaction history and spending\n• Address change, cheque book, KYC update\n\nWhat would you like help with?";
 
-export default function ChatWindow({ token, userName, onLogout }) {
+export default function ChatWindow({ token, refreshToken, userName, onLogout, onTokenRefresh }) {
   const [messages, setMessages] = useState([
     { role: "assistant", content: WELCOME },
   ]);
@@ -34,12 +34,30 @@ export default function ChatWindow({ token, userName, onLogout }) {
     setLoading(true);
 
     try {
-      const data = await sendMessage(token, SESSION_ID, text);
+      const data = await sendWithRefresh(text);
       addMessage("assistant", data.reply);
     } catch (err) {
       addMessage("system", `⚠️ ${err.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // The access token expires in 15 min. On a 401, use the refresh token to
+  // get a new one and retry once before giving up.
+  async function sendWithRefresh(text) {
+    try {
+      return await sendMessage(token, SESSION_ID, text);
+    } catch (err) {
+      if (err.status !== 401 || !refreshToken) throw err;
+      try {
+        const { access_token } = await refreshAccessToken(refreshToken);
+        onTokenRefresh(access_token);
+        return await sendMessage(access_token, SESSION_ID, text);
+      } catch {
+        onLogout();
+        throw new Error("Session expired. Please log in again.");
+      }
     }
   }
 

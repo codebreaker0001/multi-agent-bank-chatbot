@@ -11,8 +11,7 @@ Base = declarative_base()
 
 
 def get_db():
-    """Yields a session and always closes it. FastAPI will use this as a
-    dependency from day 2 onward."""
+
     db = SessionLocal()
     try:
         yield db

@@ -1,7 +1,8 @@
 """API Gateway — single entry point for the chatbot.
 
 Endpoints:
-  POST /login          authenticate, get JWT
+  POST /login          authenticate, get an access + refresh token
+  POST /refresh        trade a refresh token for a new access token
   POST /chat           send a message, get a reply
   POST /service/action execute a confirmed service action (address, KYC, cheque book)
   GET  /health         liveness check
@@ -12,13 +13,13 @@ import uuid
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.agents import account_agent, transaction_agent
 from app.agents import service_agent
-from app.auth import create_token, decode_token, verify_password
+from app.auth import create_access_token, create_refresh_token, decode_token, verify_password
 from app.coordinator import classify_intent, run as coordinator_run
 from app.database import get_db
 from app.models import User
@@ -26,7 +27,7 @@ from app.pii_masker import mask, unmask
 from app.rate_limiter import is_rate_limited
 from app.schemas import (
     ChatRequest, ChatResponse, ErrorResponse,
-    LoginRequest, LoginResponse,
+    LoginResponse, RefreshRequest, TokenResponse,
     ServiceActionRequest, ServiceActionResponse,
 )
 from app.session_store import add_message, get_history
@@ -40,7 +41,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-bearer_scheme = HTTPBearer()
+# tokenUrl points at /login so FastAPI's docs "Authorize" button can fetch a
+# token for you; the dependency itself just reads the Authorization header.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 # ── middleware ────────────────────────────────────────────────────────────────
@@ -56,11 +59,9 @@ async def inject_request_id(request: Request, call_next):
 
 # ── auth dependency ───────────────────────────────────────────────────────────
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> dict:
+def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     try:
-        return decode_token(credentials.credentials)
+        return decode_token(token, expected_type="access")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -85,12 +86,31 @@ def health():
 
 
 @app.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.customer_id == body.customer_id).first()
-    if not user or not verify_password(body.password, user.password_hash):
+def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # OAuth2PasswordRequestForm names the customer ID field "username" — it's
+    # the standard OAuth2 password-grant field name, not a literal username.
+    user = db.query(User).filter(User.customer_id == form.username).first()
+    if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid customer ID or password")
-    token = create_token(user.customer_id, user.name)
-    return LoginResponse(access_token=token, customer_id=user.customer_id, name=user.name)
+    return LoginResponse(
+        access_token=create_access_token(user.customer_id, user.name),
+        refresh_token=create_refresh_token(user.customer_id),
+        customer_id=user.customer_id,
+        name=user.name,
+    )
+
+
+@app.post("/refresh", response_model=TokenResponse)
+def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
+    try:
+        payload = decode_token(body.refresh_token, expected_type="refresh")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user = db.query(User).filter(User.customer_id == payload["sub"]).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return TokenResponse(access_token=create_access_token(user.customer_id, user.name))
 
 
 @app.post(

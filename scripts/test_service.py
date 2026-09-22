@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
 
 from app.agents.service_agent import get_context, request_cheque_book, update_address, update_kyc
-from app.auth import create_token, hash_password
+from app.auth import create_access_token, hash_password
 from app.database import Base, get_db
 from app.main import app
 from app.models import KYC, Account, Address, ServiceRequest, User
@@ -70,7 +70,7 @@ def client():
 
 @pytest.fixture
 def auth_headers():
-    return {"Authorization": f"Bearer {create_token('CUST1001', 'Ananya Sharma')}"}
+    return {"Authorization": f"Bearer {create_access_token('CUST1001', 'Ananya Sharma')}"}
 
 
 # ── get_context ───────────────────────────────────────────────────────────────

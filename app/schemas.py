@@ -5,16 +5,21 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class LoginRequest(BaseModel):
-    customer_id: str = Field(..., min_length=1)
-    password: str = Field(..., min_length=1)
-
-
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     customer_id: str
     name: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=1)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 
 class ChatRequest(BaseModel):

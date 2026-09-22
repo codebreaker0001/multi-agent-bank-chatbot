@@ -15,16 +15,29 @@ function authHeaders(token) {
 }
 
 export async function login(customerId, password) {
+  // OAuth2PasswordBearer's token endpoint expects form-encoded
+  // username/password, not JSON — "username" is the standard OAuth2 field
+  // name, used here to carry the customer ID.
   const res = await fetch(`${BASE}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ customer_id: customerId, password }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ username: customerId, password }),
   });
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || "Login failed");
   }
-  return res.json(); // { access_token, customer_id, name }
+  return res.json(); // { access_token, refresh_token, customer_id, name }
+}
+
+export async function refreshAccessToken(refreshToken) {
+  const res = await fetch(`${BASE}/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) throw new Error("Session expired. Please log in again.");
+  return res.json(); // { access_token }
 }
 
 export async function sendMessage(token, sessionId, message) {
@@ -35,7 +48,9 @@ export async function sendMessage(token, sessionId, message) {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || err.detail || "Something went wrong");
+    const error = new Error(err.error || err.detail || "Something went wrong");
+    error.status = res.status; // lets callers detect a 401 and retry after a refresh
+    throw error;
   }
   return res.json(); // { reply, session_id }
 }
