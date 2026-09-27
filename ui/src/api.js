@@ -67,3 +67,25 @@ export async function serviceAction(token, payload) {
   }
   return res.json(); // { message }
 }
+
+async function authed(token, path, method = "GET", body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: authHeaders(token),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const error = new Error(err.detail || "Something went wrong");
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+}
+
+export const getAccounts = (token) => authed(token, "/accounts");
+export const getTransactions = (token, limit = 10) => authed(token, `/transactions?limit=${limit}`);
+export const getCard = (token) => authed(token, "/cards");
+export const freezeCard = (token) => authed(token, "/cards/freeze", "POST");
+export const unfreezeCard = (token) => authed(token, "/cards/unfreeze", "POST");
+export const getMetrics = (token) => authed(token, "/metrics");

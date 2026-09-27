@@ -60,51 +60,41 @@ def test_unknown_intent_falls_back(mock_client):
 
 
 # ── run() tests ───────────────────────────────────────────────────────────────
+# intent is passed in (already classified by the caller — see app/main.py),
+# not reclassified by run() itself, so each of these needs only one mocked
+# Groq response: the sub-agent's, not a classification call.
 
 @patch("app.coordinator.client")
-def test_run_returns_reply_and_intent(mock_client):
-    # First call = classify, second call = agent response
-    mock_client.chat.completions.create.side_effect = [
-        mock_groq_response("account"),
-        mock_groq_response("Your balance is ₹50,000."),
-    ]
-    reply, intent = run("what is my balance?", history=[])
-    assert intent == "account"
+def test_run_returns_agent_reply(mock_client):
+    mock_client.chat.completions.create.return_value = mock_groq_response("Your balance is ₹50,000.")
+    reply = run("account", "what is my balance?", history=[])
     assert "balance" in reply.lower()
 
 
-@patch("app.coordinator.client")
-def test_run_unknown_returns_help_message(mock_client):
-    mock_client.chat.completions.create.return_value = mock_groq_response("unknown")
-    reply, intent = run("who is the president?", history=[])
-    assert intent == "unknown"
+def test_run_unknown_returns_help_message_without_any_llm_call():
+    # No @patch("app.coordinator.client") — proves unknown short-circuits
+    # before touching the Groq client at all.
+    reply = run("unknown", "who is the president?", history=[])
     assert reply == UNKNOWN_REPLY
 
 
 @patch("app.coordinator.client")
 def test_run_passes_history_to_agent(mock_client):
-    mock_client.chat.completions.create.side_effect = [
-        mock_groq_response("transaction"),
-        mock_groq_response("Here are your transactions."),
-    ]
+    mock_client.chat.completions.create.return_value = mock_groq_response("Here are your transactions.")
     history = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
-    run("show my transactions", history=history)
+    run("transaction", "show my transactions", history=history)
 
-    # Second call is the agent call — check history was passed
-    agent_call_messages = mock_client.chat.completions.create.call_args_list[1][1]["messages"]
+    agent_call_messages = mock_client.chat.completions.create.call_args_list[0][1]["messages"]
     roles = [m["role"] for m in agent_call_messages]
     assert "user" in roles and "assistant" in roles
 
 
 @patch("app.coordinator.client")
 def test_run_injects_context_into_system_prompt(mock_client):
-    mock_client.chat.completions.create.side_effect = [
-        mock_groq_response("account"),
-        mock_groq_response("Your balance is ₹50,000."),
-    ]
-    run("what is my balance?", history=[], context="Balance: 50000")
+    mock_client.chat.completions.create.return_value = mock_groq_response("Your balance is ₹50,000.")
+    run("account", "what is my balance?", history=[], context="Balance: 50000")
 
-    system_msg = mock_client.chat.completions.create.call_args_list[1][1]["messages"][0]["content"]
+    system_msg = mock_client.chat.completions.create.call_args_list[0][1]["messages"][0]["content"]
     assert "Balance: 50000" in system_msg
 
 
@@ -160,6 +150,7 @@ def test_chat_endpoint_returns_coordinator_reply(mock_groq, client, auth_headers
                           headers=auth_headers)
     assert res.status_code == 200
     assert "₹50,000" in res.json()["reply"]
+    assert res.json()["agent"] == "Account Agent"
 
 
 @patch("app.coordinator.client")
@@ -172,3 +163,4 @@ def test_chat_endpoint_handles_unknown_intent(mock_groq, client, auth_headers):
                           headers=auth_headers)
     assert res.status_code == 200
     assert "balance" in res.json()["reply"].lower()  # the fallback message mentions balance
+    assert res.json()["agent"] is None  # no sub-agent runs for an unknown intent

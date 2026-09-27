@@ -20,6 +20,11 @@ Flow:
     → coordinator classifies intent  (one fast LLM call)
     → route to sub-agent             (another LLM call with tools)
     → return reply
+
+Intent is classified once by the caller (app/main.py — it also needs the
+intent to pick which agent's get_context() to call for DB data), and passed
+into run() rather than reclassified here, so each message costs one
+classification call, not two.
 """
 
 from groq import Groq
@@ -39,7 +44,6 @@ Classify the user message into exactly one of these intents:
 Reply with only the intent word. Nothing else.
 If the message is unrelated to banking, reply: unknown"""
 
-a = "hello"
 def classify_intent(message: str) -> str:
     """Ask the LLM to classify the intent. Returns one of: account / transaction / service / unknown."""
     response = client.chat.completions.create(
@@ -90,21 +94,17 @@ UNKNOWN_REPLY = (
 
 # ── main entry point ──────────────────────────────────────────────────────────
 
-def run(message: str, history: list[dict], context: str = "") -> tuple[str, str]:
-    """Classify intent, route to sub-agent, return (reply, intent).
+def run(intent: str, message: str, history: list[dict], context: str = "") -> str:
+    """Route to the sub-agent for `intent` and return its reply.
 
     Args:
+        intent:   already-classified intent (account/transaction/service/unknown)
         message:  the user's current message (already PII-masked)
         history:  conversation history from Redis [ {role, content}, ... ]
-        context:  bank data fetched from DB to inject into the prompt (Day 6+)
-
-    Returns:
-        (reply, intent) — reply is the agent's response, intent is for logging
+        context:  bank data fetched from DB to inject into the prompt
     """
-    intent = classify_intent(message)
-
     if intent == "unknown":
-        return UNKNOWN_REPLY, intent
+        return UNKNOWN_REPLY
 
     system_prompt = AGENT_PROMPTS[intent]
     if context:
@@ -123,5 +123,4 @@ def run(message: str, history: list[dict], context: str = "") -> tuple[str, str]
         reasoning_effort="low",
     )
 
-    reply = response.choices[0].message.content.strip()
-    return reply, intent
+    return response.choices[0].message.content.strip()

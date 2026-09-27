@@ -44,6 +44,10 @@ class Account(Base):
     branch = Column(String(50), nullable=False)
     status = Column(String(20), default="active")
     opened_on = Column(Date, default=date.today)
+    # There's no separate Card table (a debit card here is just "the
+    # account's card") — this is the one bit of card state that's real,
+    # everything else about the card (network, expiry) is illustrative.
+    card_frozen = Column(Boolean, nullable=False, default=False)
 
     user = relationship("User", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account")

@@ -18,3 +18,6 @@ python-multipart==0.0.32  # needed for OAuth2PasswordRequestForm (login as form 
 
 # day 5
 groq==0.12.0
+
+# observability
+psutil==7.2.2
