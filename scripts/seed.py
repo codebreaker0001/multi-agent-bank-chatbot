@@ -18,7 +18,7 @@ from app.models import KYC, Account, Address, ServiceRequest, Transaction, User
 random.seed(42)
 
 USERS = [
-    ("CUST1001", "Ananya Sharma", "ananya@example.com", "9812345601", "Gurugram", "Haryana", "122002"),
+    ("CUST1001", "Adarsh Yadav", "adarsh@example.com", "9812345601", "Gurugram", "Haryana", "122002"),
     ("CUST1002", "Rohit Verma", "rohit@example.com", "9812345602", "Bengaluru", "Karnataka", "560038"),
     ("CUST1003", "Meera Iyer", "meera@example.com", "9812345603", "Mumbai", "Maharashtra", "400050"),
 ]
