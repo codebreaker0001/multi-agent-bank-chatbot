@@ -17,7 +17,10 @@ passlib==1.7.4
 python-multipart==0.0.32  # needed for OAuth2PasswordRequestForm (login as form data)
 
 # day 5
-groq==0.12.0
+# groq==0.12.0 is incompatible with httpx==0.28.1 above (its Client.__init__
+# still passes a "proxies" kwarg httpx 0.28 removed) — this only surfaces on
+# a clean install, not in a venv that drifted to a newer groq already.
+groq==1.7.0
 
 # observability
 psutil==7.2.2

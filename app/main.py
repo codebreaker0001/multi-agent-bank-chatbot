@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.agents import account_agent, transaction_agent
 from app.agents import service_agent
 from app.auth import create_access_token, create_refresh_token, decode_token, verify_password
+from app.config import FRONTEND_URL
 from app.coordinator import classify_intent, run as coordinator_run
 from app.database import get_db
 from app.models import Account, Transaction, User
@@ -47,7 +48,7 @@ app = FastAPI(title="Bank Chatbot Gateway")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[FRONTEND_URL],
     allow_methods=["*"],
     allow_headers=["*"],
 )

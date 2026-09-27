@@ -1,0 +1,24 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Dashboard: New + -> Blueprint -> select this repo. Render reads this file
+# and provisions the service below; it'll prompt for the envVars marked
+# `sync: false` rather than storing secrets here.
+services:
+  - type: web
+    name: bank-chatbot-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Neon connection string
+      - key: REDIS_URL
+        sync: false # Upstash connection string
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong random value
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: FRONTEND_URL
+        sync: false # set once the Vercel URL exists, e.g. https://your-app.vercel.app
