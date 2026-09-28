@@ -25,13 +25,32 @@ Intent is classified once by the caller (app/main.py — it also needs the
 intent to pick which agent's get_context() to call for DB data), and passed
 into run() rather than reclassified here, so each message costs one
 classification call, not two.
+
+Provider: LLM_PROVIDER=groq (default, what the deployed backend uses) or
+LLM_PROVIDER=ollama (local dev — nothing leaves the machine Ollama runs on).
+Ollama exposes an OpenAI-compatible endpoint, so the same openai.OpenAI
+client just gets pointed at localhost instead of Groq's API — same
+request/response shape either way, only the client and model name differ.
 """
 
-from groq import Groq
+from app.config import (
+    GROQ_API_KEY, GROQ_MODEL, LLM_PROVIDER, OLLAMA_BASE_URL, OLLAMA_MODEL,
+)
 
-from app.config import GROQ_API_KEY, GROQ_MODEL
+if LLM_PROVIDER == "ollama":
+    from openai import OpenAI
 
-client = Groq(api_key=GROQ_API_KEY)
+    client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")  # key is required by the SDK, ignored by Ollama
+    MODEL = OLLAMA_MODEL
+else:
+    from groq import Groq
+
+    client = Groq(api_key=GROQ_API_KEY)
+    MODEL = GROQ_MODEL
+
+# reasoning_effort is a Groq/gpt-oss-specific knob most Ollama models don't
+# recognize — only pass it when it means something.
+_EXTRA_KWARGS = {"reasoning_effort": "low"} if LLM_PROVIDER != "ollama" else {}
 
 # ── intent classification ─────────────────────────────────────────────────────
 
@@ -47,14 +66,14 @@ If the message is unrelated to banking, reply: unknown"""
 def classify_intent(message: str) -> str:
     """Ask the LLM to classify the intent. Returns one of: account / transaction / service / unknown."""
     response = client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=MODEL,
         messages=[
             {"role": "system", "content": INTENT_PROMPT},
             {"role": "user", "content": message},
         ],
-        temperature=0,          # deterministic — we want consistent classification
-        max_tokens=200,         # gpt-oss spends tokens on internal reasoning before the answer
-        reasoning_effort="low", # keep that reasoning overhead minimal for a one-word answer
+        temperature=0,   # deterministic — we want consistent classification
+        max_tokens=200,  # gpt-oss spends tokens on internal reasoning before the answer
+        **_EXTRA_KWARGS,
     )
     intent = response.choices[0].message.content.strip().lower()
     # Guard against unexpected responses
@@ -116,11 +135,11 @@ def run(intent: str, message: str, history: list[dict], context: str = "") -> st
     messages.append({"role": "user", "content": message})
 
     response = client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=MODEL,
         messages=messages,
         temperature=0.3,
         max_tokens=512,
-        reasoning_effort="low",
+        **_EXTRA_KWARGS,
     )
 
     return response.choices[0].message.content.strip()
